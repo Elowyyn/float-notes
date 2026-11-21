@@ -6,6 +6,8 @@ MD3 风格的系统级悬浮窗便签。浮窗挂载在 `WindowManager` 的 `TYP
 - 版本：`1.6`（versionCode 7）
 - minSdk 26 / targetSdk 34 / compileSdk 34
 - 产物：`../浮窗便签_v1.6.apk`（自签名，可直接安装）
+- 仓库：<https://github.com/Elowyyn/float-notes>（public，main 分支）
+- 不入库：`android/build/`、`*.apk`、`*.idsig`、`.workbuddy/`（见 `.gitignore`）
 
 ## 技术栈
 
@@ -42,6 +44,17 @@ cd android && bash build.sh
 - JDK：`.../jdk/jdk-17.0.20.1+1`
 
 签名证书首次构建时自动生成于 `build/float-notes.keystore`（alias `floatnotes`，密码 `floatnotes2026`）。**不要丢失**，否则无法覆盖安装。
+
+### 推送 GitHub
+
+仓库内已固定 `http.version = HTTP/1.1`（HTTP/2 经代理会 `unexpected eof`）。推送前先确认 FlClash 端口：
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" -x "http://127.0.0.1:<port>" https://github.com   # 200 即可
+HTTPS_PROXY="http://127.0.0.1:<port>" HTTP_PROXY="http://127.0.0.1:<port>" git push
+```
+
+端口每次会变（见过 7890 / 4385 / 14433 …），以实际监听为准；`SOCKS5` 兜底写法见用户级 MEMORY.md。
 
 ## 关键实现
 
