@@ -1,0 +1,13 @@
+# 构建产物
+android/build/
+
+# APK 仅本地留存，不入库
+*.apk
+*.idsig
+
+# 工具缓存
+.workbuddy/
+
+# 系统
+.DS_Store
+Thumbs.db

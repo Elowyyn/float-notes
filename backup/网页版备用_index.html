@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#FEF7FF" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<title>浮窗便签</title>
+<style>
+  :root{
+    --md-primary:#6750A4;
+    --md-on-primary:#FFFFFF;
+    --md-primary-container:#EADDFF;
+    --md-on-primary-container:#21005D;
+    --md-surface:#FEF7FF;
+    --md-on-surface:#1D1B20;
+    --md-on-surface-variant:#49454F;
+    --md-surface-container-low:#F7F2FA;
+    --md-surface-container:#F3EDF7;
+    --md-surface-container-high:#ECE6F0;
+    --md-outline:#79747E;
+    --md-outline-variant:#CAC4D0;
+    --md-inverse-surface:#322F35;
+    --md-inverse-on-surface:#F5EFF7;
+    --md-inverse-primary:#D0BCFF;
+    --appbar-bg:rgba(254,247,255,.82);
+    --scrim-bg:rgba(0,0,0,.32);
+    --sh-1:0 1px 2px rgba(0,0,0,.14), 0 6px 16px rgba(0,0,0,.10);
+    --sh-2:0 2px 6px rgba(0,0,0,.16), 0 10px 28px rgba(0,0,0,.16);
+    --ripple:rgba(103,80,164,.10);
+    --ripple-strong:rgba(103,80,164,.18);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --md-primary:#D0BCFF;
+      --md-on-primary:#381E72;
+      --md-primary-container:#4F378B;
+      --md-on-primary-container:#EADDFF;
+      --md-surface:#141218;
+      --md-on-surface:#E6E0E9;
+      --md-on-surface-variant:#CAC4D0;
+      --md-surface-container-low:#1D1B20;
+      --md-surface-container:#211F26;
+      --md-surface-container-high:#2B2930;
+      --md-outline:#938F99;
+      --md-outline-variant:#49454F;
+      --md-inverse-surface:#E6E0E9;
+      --md-inverse-on-surface:#322F35;
+      --md-inverse-primary:#6750A4;
+      --appbar-bg:rgba(20,18,24,.82);
+      --scrim-bg:rgba(0,0,0,.52);
+      --sh-1:0 1px 2px rgba(0,0,0,.5), 0 6px 18px rgba(0,0,0,.45);
+      --sh-2:0 3px 8px rgba(0,0,0,.55), 0 12px 32px rgba(0,0,0,.5);
+      --ripple:rgba(208,188,255,.12);
+      --ripple-strong:rgba(208,188,255,.20);
+    }
+  }
+
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC","PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;
+    background:var(--md-surface);
+    color:var(--md-on-surface);
+    overflow:hidden;
+    overscroll-behavior:none;
+    -webkit-font-smoothing:antialiased;
+    transition:background .2s;
+  }
+
+  /* ---------- App bar ---------- */
+  .appbar{
+    position:fixed;top:0;left:0;right:0;z-index:900;
+    height:60px;display:flex;align-items:center;gap:8px;
+    padding:0 10px 0 calc(20px + env(safe-area-inset-left));
+    background:var(--appbar-bg);
+    -webkit-backdrop-filter:blur(14px) saturate(1.4);
+    backdrop-filter:blur(14px) saturate(1.4);
+    border-bottom:1px solid transparent;
+  }
+  .appbar h1{
+    flex:1;margin:0;font-size:20px;font-weight:500;letter-spacing:.15px;
+    line-height:1.2;
+  }
+
+  /* ---------- Icon buttons (MD3) ---------- */
+  .ic-btn{
+    width:40px;height:40px;flex:0 0 auto;border:0;border-radius:50%;
+    background:transparent;color:var(--md-on-surface-variant);
+    display:grid;place-items:center;cursor:pointer;
+    transition:background .15s, color .15s;
+    padding:0;
+  }
+  .ic-btn svg{width:20px;height:20px}
+  .ic-btn:hover{background:var(--ripple)}
+  .ic-btn:active{background:var(--ripple-strong)}
+  .ic-btn.sm{width:32px;height:32px}
+  .ic-btn.sm svg{width:18px;height:18px}
+  .ic-btn.on{color:var(--md-on-primary-container);background:var(--md-primary-container)}
+
+  /* ---------- Floating window ---------- */
+  #stage{position:fixed;inset:0;z-index:10;pointer-events:none}
+  .win{
+    position:fixed;top:0;left:0;
+    width:min(260px, calc(100vw - 40px));
+    display:flex;flex-direction:column;gap:6px;
+    pointer-events:auto;
+    will-change:transform;
+    animation:winIn .22s cubic-bezier(.2,0,0,1);
+  }
+  @keyframes winIn{
+    from{opacity:0; scale:.92}
+    to{opacity:1; scale:1}
+  }
+  .win.closing{transition:opacity .16s ease, scale .16s ease; opacity:0; scale:.92}
+  .win.dragging .win-ctrl{box-shadow:var(--sh-2)}
+
+  .win-ctrl{
+    background:var(--md-surface-container-high);
+    border-radius:18px;
+    padding:4px 4px 7px;
+    box-shadow:var(--sh-1);
+    user-select:none;-webkit-user-select:none;
+    -webkit-touch-callout:none;
+    cursor:grab;
+    transition:box-shadow .18s, background .18s;
+  }
+  .win.dragging .win-ctrl{cursor:grabbing}
+  .win.locked .win-ctrl{
+    box-shadow:var(--sh-1), inset 0 0 0 1.5px var(--md-primary);
+  }
+  .win.is-hidden .win-ctrl{opacity:.94}
+
+  .ctrl-row{display:flex;align-items:center;gap:2px;padding:0 2px}
+  .grip{
+    margin-left:auto;padding-right:6px;display:grid;place-items:center;
+    color:var(--md-outline);opacity:.6;pointer-events:none;
+  }
+  .ctrl-slide{display:flex;align-items:center;gap:6px;padding:3px 6px 0}
+  .opa-ic{width:14px;height:14px;flex:0 0 auto;color:var(--md-on-surface-variant);opacity:.75}
+  .opa-val{
+    font-size:10.5px;width:32px;text-align:right;
+    color:var(--md-on-surface-variant);
+    font-variant-numeric:tabular-nums;letter-spacing:-.2px;
+  }
+
+  /* MD3 slider */
+  input[type="range"]{
+    -webkit-appearance:none;appearance:none;
+    flex:1;height:18px;margin:0;padding:0;background:transparent;
+    --p:100%;cursor:pointer;touch-action:auto;
+  }
+  input[type="range"]::-webkit-slider-runnable-track{
+    height:4px;border-radius:999px;
+    background:linear-gradient(90deg, var(--md-primary) 0 var(--p), var(--md-outline-variant) var(--p) 100%);
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:14px;height:14px;margin-top:-5px;
+    border-radius:50%;background:var(--md-primary);
+    box-shadow:0 1px 3px rgba(0,0,0,.3);
+  }
+  input[type="range"]::-moz-range-track{height:4px;border-radius:999px;background:var(--md-outline-variant)}
+  input[type="range"]::-moz-range-progress{height:4px;border-radius:999px;background:var(--md-primary)}
+  input[type="range"]::-moz-range-thumb{width:14px;height:14px;border:0;border-radius:50%;background:var(--md-primary)}
+
+  .win-body{
+    border-radius:18px;
+    background:var(--md-surface-container);
+    box-shadow:var(--sh-1);
+    overflow:hidden;
+    transition:opacity .16s ease;
+  }
+  .win.is-hidden .win-body{display:none}
+
+  .win-text{
+    padding:13px 15px;
+    font-size:15px;line-height:1.65;
+    white-space:pre-wrap;word-break:break-word;
+    max-height:46vh;overflow:auto;
+    scrollbar-width:none;
+  }
+  .win-text::-webkit-scrollbar{display:none}
+  .win.locked .win-text{cursor:default}
+  .win:not(.locked) .win-text:active{background:var(--ripple)}
+
+  .win-img{
+    display:block;width:100%;max-height:46vh;object-fit:contain;
+    background:rgba(0,0,0,.02);
+    -webkit-user-drag:none;user-select:none;-webkit-touch-callout:none;
+  }
+
+  /* ---------- Empty state ---------- */
+  #empty{
+    position:fixed;inset:0;display:none;flex-direction:column;
+    align-items:center;justify-content:center;gap:4px;
+    padding:0 44px;text-align:center;pointer-events:none;z-index:15;
+    color:var(--md-on-surface-variant);
+  }
+  #empty.show{display:flex}
+  #empty svg{width:76px;height:76px;opacity:.34;margin-bottom:10px}
+  #empty p{margin:0;font-size:16px;font-weight:500;color:var(--md-on-surface);opacity:.85}
+  #empty span{font-size:13px;line-height:1.6;opacity:.75}
+
+  /* ---------- FAB ---------- */
+  .fab{
+    position:fixed;right:20px;bottom:calc(22px + env(safe-area-inset-bottom));
+    width:56px;height:56px;border:0;border-radius:16px;
+    background:var(--md-primary);color:var(--md-on-primary);
+    box-shadow:var(--sh-2);display:grid;place-items:center;
+    cursor:pointer;z-index:950;
+    transition:transform .18s cubic-bezier(.2,0,0,1), box-shadow .18s, background .18s;
+  }
+  .fab svg{width:24px;height:24px}
+  .fab:active{transform:scale(.94)}
+  .fab:hover{box-shadow:var(--sh-2)}
+
+  /* ---------- Sheet ---------- */
+  .scrim{
+    position:fixed;inset:0;background:var(--scrim-bg);z-index:960;
+    opacity:0;pointer-events:none;transition:opacity .24s ease;
+  }
+  .scrim.open{opacity:1;pointer-events:auto}
+
+  .sheet{
+    position:fixed;left:0;right:0;bottom:0;z-index:970;
+    background:var(--md-surface-container-low);
+    border-radius:28px 28px 0 0;
+    padding:8px 20px calc(18px + env(safe-area-inset-bottom));
+    transform:translateY(112%);
+    transition:transform .3s cubic-bezier(.2,0,0,1);
+    box-shadow:0 -2px 20px rgba(0,0,0,.16);
+    max-height:82vh;overflow:auto;
+  }
+  .sheet.open{transform:translateY(0)}
+  .sheet-handle{
+    width:32px;height:4px;border-radius:999px;margin:0 auto 14px;
+    background:var(--md-outline-variant);
+  }
+  .sheet-title{font-size:16px;font-weight:500;margin:0 0 14px;letter-spacing:.1px}
+
+  .opt{
+    display:flex;align-items:center;gap:14px;width:100%;
+    background:var(--md-surface-container-high);border:0;border-radius:16px;
+    padding:13px 16px;margin-bottom:10px;text-align:left;font:inherit;
+    color:var(--md-on-surface);cursor:pointer;
+    transition:background .15s, transform .12s;
+  }
+  .opt:active{transform:scale(.985);background:var(--md-surface-container)}
+  .opt-ic{
+    width:42px;height:42px;border-radius:13px;flex:0 0 auto;
+    background:var(--md-primary-container);color:var(--md-on-primary-container);
+    display:grid;place-items:center;
+  }
+  .opt-ic svg{width:22px;height:22px}
+  .opt-tx b{display:block;font-size:15px;font-weight:500;line-height:1.35}
+  .opt-tx small{display:block;font-size:12px;margin-top:2px;color:var(--md-on-surface-variant)}
+
+  .md-field{
+    width:100%;border:1px solid var(--md-outline-variant);
+    background:var(--md-surface-container-high);color:var(--md-on-surface);
+    border-radius:14px;padding:12px 14px;font:inherit;font-size:15px;line-height:1.6;
+    resize:none;outline:none;min-height:110px;display:block;
+    transition:border-color .18s;
+  }
+  .md-field:focus{border-color:var(--md-primary);border-width:2px;padding:11px 13px}
+  .sheet-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:16px}
+  .btn-text,.btn-filled{
+    height:44px;border:0;border-radius:999px;font:inherit;font-size:14px;
+    font-weight:500;letter-spacing:.1px;cursor:pointer;padding:0 20px;
+    transition:background .15s, filter .15s;
+  }
+  .btn-text{background:transparent;color:var(--md-primary)}
+  .btn-text:hover{background:var(--ripple)}
+  .btn-filled{background:var(--md-primary);color:var(--md-on-primary);padding:0 24px}
+  .btn-filled:hover{filter:brightness(1.05)}
+  .btn-filled:active{filter:brightness(.95)}
+
+  /* ---------- Toast ---------- */
+  .toast{
+    position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));
+    transform:translate(-50%, 18px);
+    background:var(--md-inverse-surface);color:var(--md-inverse-on-surface);
+    border-radius:12px;padding:12px 16px;font-size:13.5px;
+    display:flex;align-items:center;gap:12px;
+    opacity:0;pointer-events:none;z-index:990;
+    transition:opacity .22s cubic-bezier(.2,0,0,1), transform .22s cubic-bezier(.2,0,0,1);
+    max-width:calc(100vw - 40px);box-shadow:var(--sh-2);
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+  .toast-act{
+    background:transparent;border:0;color:var(--md-inverse-primary);
+    font:inherit;font-weight:600;font-size:13.5px;padding:4px 2px;cursor:pointer;white-space:nowrap;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  }
+</style>
+</head>
+<body>
+
+<header class="appbar">
+  <h1>浮窗便签</h1>
+  <button class="ic-btn" id="btnClear" aria-label="关闭全部浮窗">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 7h16M9.5 7V5.2A1.2 1.2 0 0 1 10.7 4h2.6a1.2 1.2 0 0 1 1.2 1.2V7M6.5 7l.9 12.1A1.5 1.5 0 0 0 8.9 20.5h6.2a1.5 1.5 0 0 0 1.5-1.4L17.5 7M10 11v5.5M14 11v5.5"/>
+    </svg>
+  </button>
+</header>
+
+<main id="stage"></main>
+
+<div id="empty">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="3" width="13" height="11" rx="2.5"/>
+    <path d="M3 11l3.2-3.2a1.4 1.4 0 0 1 2 0L11 10.5"/>
+    <rect x="8" y="9" width="13" height="11.5" rx="2.5" fill="var(--md-surface)"/>
+    <path d="M11 13.2h7M11 16.4h4.5"/>
+  </svg>
+  <p>还没有浮窗</p>
+  <span>点击右下角 + 添加文字或图片浮窗</span>
+</div>
+
+<button class="fab" id="fab" aria-label="添加浮窗">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+    <path d="M12 5v14M5 12h14"/>
+  </svg>
+</button>
+
+<div class="scrim" id="scrim"></div>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="浮窗设置">
+  <div class="sheet-handle"></div>
+  <div id="sheetBody"></div>
+</section>
+
+<input type="file" id="fileInput" accept="image/*" multiple hidden />
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ============ 常量 / 图标 ============ */
+  var KEY = 'md3-float-notes-v1';
+  var S = 'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"';
+  var ICON = {
+    eye:    '<svg viewBox="0 0 24 24" '+S+'><path d="M2.2 12S5.8 5.6 12 5.6 21.8 12 21.8 12 18.2 18.4 12 18.4 2.2 12 2.2 12z"/><circle cx="12" cy="12" r="2.9"/></svg>',
+    eyeOff: '<svg viewBox="0 0 24 24" '+S+'><path d="M2.2 12S5.8 5.6 12 5.6 21.8 12 21.8 12 18.2 18.4 12 18.4 2.2 12 2.2 12z"/><circle cx="12" cy="12" r="2.9"/><path d="M3.4 3.4l17.2 17.2"/></svg>',
+    lock:   '<svg viewBox="0 0 24 24" '+S+'><rect x="4.6" y="10.4" width="14.8" height="9.9" rx="2.6"/><path d="M8.2 10.4V7.2a3.8 3.8 0 0 1 7.6 0v3.2"/></svg>',
+    unlock: '<svg viewBox="0 0 24 24" '+S+'><rect x="4.6" y="10.4" width="14.8" height="9.9" rx="2.6"/><path d="M8.2 10.4V7.2a3.8 3.8 0 0 1 7.1-2"/></svg>',
+    close:  '<svg viewBox="0 0 24 24" '+S+'><path d="M6.4 6.4l11.2 11.2M17.6 6.4L6.4 17.6"/></svg>',
+    opacity:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8.4"/><path d="M12 3.6a8.4 8.4 0 0 1 0 16.8z" fill="currentColor" stroke="none"/></svg>',
+    grip:   '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="18" r="1.3"/></svg>',
+    text:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 6.5h14M12 6.5V18M9 18h6"/></svg>',
+    image:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="4.6" width="17.6" height="14.8" rx="3"/><circle cx="8.6" cy="9.8" r="1.6"/><path d="M4 16.4l4.6-4.2a2 2 0 0 1 2.7 0l2.4 2.2 1.8-1.6a2 2 0 0 1 2.6 0L21 15.4"/></svg>'
+  };
+
+  /* ============ DOM ============ */
+  var stage     = document.getElementById('stage');
+  var emptyEl   = document.getElementById('empty');
+  var fab       = document.getElementById('fab');
+  var scrim     = document.getElementById('scrim');
+  var sheet     = document.getElementById('sheet');
+  var sheetBody = document.getElementById('sheetBody');
+  var fileInput = document.getElementById('fileInput');
+  var toastEl   = document.getElementById('toast');
+
+  /* ============ 状态 ============ */
+  var wins = [];       // 数据
+  var els  = new Map(); // id -> DOM
+  var zTop = 20;
+  var saveTimer = null;
+  var toastTimer = null;
+  var sheetMode = 'add';
+  var editingId = null;
+
+  /* ============ 工具 ============ */
+  function uid(){ return Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3); }
+  function clamp(v, a, b){ return Math.min(Math.max(v, a), b); }
+  function $(sel, root){ return (root || document).querySelector(sel); }
+
+  function normalize(w){
+    return {
+      id: w.id || uid(),
+      type: w.type === 'image' ? 'image' : 'text',
+      text: typeof w.text === 'string' ? w.text : '',
+      src: typeof w.src === 'string' ? w.src : '',
+      x: Number(w.x) || 16,
+      y: Number(w.y) || 96,
+      z: Number(w.z) || 10,
+      opacity: w.opacity == null ? 1 : clamp(Number(w.opacity), 0.1, 1),
+      locked: !!w.locked,
+      hidden: !!w.hidden
+    };
+  }
+
+  function load(){
+    try{
+      var raw = localStorage.getItem(KEY);
+      if(raw){
+        var arr = JSON.parse(raw);
+        if(Array.isArray(arr)) wins = arr.map(normalize);
+      }
+    }catch(e){ wins = []; }
+    zTop = Math.max(20, wins.reduce(function(m, w){ return Math.max(m, w.z); }, 0));
+  }
+
+  function save(){
+    clearTimeout(saveTimer);
+    try{
+      localStorage.setItem(KEY, JSON.stringify(wins));
+    }catch(e){
+      toast('保存失败：本地存储空间不足');
+    }
+  }
+  function saveSoon(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 260);
+  }
+
+  /* ============ 渲染 ============ */
+  function mount(w){
+    var el = document.createElement('div');
+    el.className = 'win';
+    el.dataset.id = w.id;
+    el.style.transform = 'translate3d(' + w.x + 'px, ' + w.y + 'px, 0)';
+    el.style.zIndex = w.z;
+
+    el.innerHTML =
+      '<div class="win-ctrl">' +
+        '<div class="ctrl-row">' +
+          '<button class="ic-btn sm act-vis" aria-label="显示或隐藏">' + ICON.eye + '</button>' +
+          '<button class="ic-btn sm act-lock" aria-label="锁定或解锁">' + ICON.unlock + '</button>' +
+          '<button class="ic-btn sm act-close" aria-label="关闭窗口">' + ICON.close + '</button>' +
+          '<span class="grip">' + ICON.grip + '</span>' +
+        '</div>' +
+        '<div class="ctrl-slide">' +
+          '<span class="opa-ic">' + ICON.opacity + '</span>' +
+          '<input class="opa" type="range" min="10" max="100" step="1" value="' + Math.round(w.opacity * 100) + '" aria-label="浮窗透明度">' +
+          '<span class="opa-val">' + Math.round(w.opacity * 100) + '%</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="win-body"></div>';
+
+    /* --- 内容 --- */
+    var body = $('.win-body', el);
+    if(w.type === 'text'){
+      var p = document.createElement('div');
+      p.className = 'win-text';
+      p.textContent = w.text || '（空）';
+      p.addEventListener('click', function(){
+        if(w.locked) return;
+        openTextSheet(w);
+      });
+      body.appendChild(p);
+    }else{
+      var img = document.createElement('img');
+      img.className = 'win-img';
+      img.alt = '';
+      img.draggable = false;
+      img.src = w.src;
+      body.appendChild(img);
+    }
+
+    /* --- 控制栏拖动 --- */
+    var ctrl = $('.win-ctrl', el);
+    ctrl.addEventListener('pointerdown', function(ev){
+      bringFront(w, el);
+      if(w.locked) return;
+      if(ev.target.closest('button, input')) return;
+      beginDrag(ev, el, w);
+    });
+
+    /* --- 三个按钮 --- */
+    $('.act-vis', el).addEventListener('click', function(){
+      w.hidden = !w.hidden;
+      update(w);
+      save();
+    });
+
+    $('.act-lock', el).addEventListener('click', function(){
+      w.locked = !w.locked;
+      update(w);
+      save();
+    });
+
+    $('.act-close', el).addEventListener('click', function(){
+      closeWin(w);
+    });
+
+    /* --- 透明度滑块 --- */
+    var inp = $('.opa', el);
+    var val = $('.opa-val', el);
+    setTrack(inp);
+    inp.addEventListener('input', function(){
+      var v = Number(inp.value);
+      w.opacity = v / 100;
+      body.style.opacity = w.opacity;
+      val.textContent = v + '%';
+      setTrack(inp);
+    });
+    inp.addEventListener('change', save);
+
+    stage.appendChild(el);
+    els.set(w.id, el);
+    update(w);
+    return el;
+  }
+
+  function setTrack(inp){
+    var p = (Number(inp.value) - Number(inp.min)) / (Number(inp.max) - Number(inp.min)) * 100;
+    inp.style.setProperty('--p', p + '%');
+  }
+
+  function update(w){
+    var el = els.get(w.id);
+    if(!el) return;
+    el.classList.toggle('locked', w.locked);
+    el.classList.toggle('is-hidden', w.hidden);
+    el.style.zIndex = w.z;
+
+    var body = $('.win-body', el);
+    body.style.opacity = w.opacity;
+
+    var bv = $('.act-vis', el);
+    bv.innerHTML = w.hidden ? ICON.eyeOff : ICON.eye;
+    bv.classList.toggle('on', w.hidden);
+
+    var bl = $('.act-lock', el);
+    bl.innerHTML = w.locked ? ICON.lock : ICON.unlock;
+    bl.classList.toggle('on', w.locked);
+
+    var inp = $('.opa', el);
+    inp.value = Math.round(w.opacity * 100);
+    $('.opa-val', el).textContent = Math.round(w.opacity * 100) + '%';
+    setTrack(inp);
+  }
+
+  function removeEl(w){
+    var el = els.get(w.id);
+    if(!el) return;
+    el.classList.add('closing');
+    setTimeout(function(){
+      if(el.parentNode) el.parentNode.removeChild(el);
+      els.delete(w.id);
+    }, 170);
+  }
+
+  function closeWin(w){
+    var idx = wins.indexOf(w);
+    if(idx < 0) return;
+    wins.splice(idx, 1);
+    removeEl(w);
+    syncEmpty();
+    save();
+    toast('已关闭浮窗', '撤销', function(){
+      wins.splice(Math.min(idx, wins.length), 0, w);
+      w.z = ++zTop;
+      mount(w);
+      syncEmpty();
+      save();
+    });
+  }
+
+  function bringFront(w, el){
+    if(w.z === zTop) return;
+    w.z = ++zTop;
+    if(zTop > 720) normalizeZ();
+    el.style.zIndex = w.z;
+    saveSoon();
+  }
+
+  function normalizeZ(){
+    var sorted = wins.slice().sort(function(a, b){ return a.z - b.z; });
+    zTop = 20;
+    sorted.forEach(function(w){
+      w.z = ++zTop;
+      var e = els.get(w.id);
+      if(e) e.style.zIndex = w.z;
+    });
+  }
+
+  function syncEmpty(){
+    emptyEl.classList.toggle('show', wins.length === 0);
+  }
+
+  /* ============ 拖动 ============ */
+  function beginDrag(ev, el, w){
+    ev.preventDefault();
+    var sx = ev.clientX, sy = ev.clientY;
+    var ox = w.x, oy = w.y;
+    var W = el.offsetWidth || 240;
+    var H = el.offsetHeight || 120;
+    var moved = false;
+    el.classList.add('dragging');
+
+    function move(e){
+      var dx = e.clientX - sx, dy = e.clientY - sy;
+      if(!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+      moved = true;
+      w.x = clamp(ox + dx, -W * 0.4, Math.max(0, window.innerWidth - W * 0.6));
+      w.y = clamp(oy + dy, 64, Math.max(64, window.innerHeight - 60));
+      el.style.transform = 'translate3d(' + w.x + 'px, ' + w.y + 'px, 0)';
+    }
+    function end(){
+      el.classList.remove('dragging');
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', end);
+      document.removeEventListener('pointercancel', end);
+
+      save();
+    }
+    document.addEventListener('pointermove', move, { passive: false });
+    document.addEventListener('pointerup', end);
+    document.addEventListener('pointercancel', end);
+  }
+
+  /* ============ 新增浮窗 ============ */
+  function place(w){
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var wid = Math.min(260, vw - 40);
+    var n = wins.length % 6;
+    w.x = clamp(16 + n * 16, 12, Math.max(12, vw - wid - 12));
+    w.y = clamp(84 + n * 18, 72, Math.max(72, vh - 240));
+  }
+
+  function addText(txt){
+    var w = normalize({ id: uid(), type: 'text', text: txt, z: ++zTop });
+    place(w);
+    wins.push(w);
+    mount(w);
+    syncEmpty();
+    save();
+    return w;
+  }
+
+  function addImage(src){
+    var w = normalize({ id: uid(), type: 'image', src: src, z: ++zTop });
+    place(w);
+    wins.push(w);
+    mount(w);
+    syncEmpty();
+    save();
+    return w;
+  }
+
+  /* ============ 图片压缩 ============ */
+  function compressImage(file){
+    return new Promise(function(resolve, reject){
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function(){
+        try{
+          var MAX = 1280, Q = 0.82;
+          var w = img.naturalWidth || img.width;
+          var h = img.naturalHeight || img.height;
+          var scale = Math.min(1, MAX / Math.max(w, h));
+          var cw = Math.max(1, Math.round(w * scale));
+          var ch = Math.max(1, Math.round(h * scale));
+          var c = document.createElement('canvas');
+          c.width = cw; c.height = ch;
+          var ctx = c.getContext('2d');
+          ctx.drawImage(img, 0, 0, cw, ch);
+          var data = c.toDataURL('image/webp', Q);
+          if(data.indexOf('data:image/webp') !== 0) data = c.toDataURL('image/jpeg', Q);
+          URL.revokeObjectURL(url);
+          resolve(data);
+        }catch(err){
+          URL.revokeObjectURL(url);
+          reject(err);
+        }
+      };
+      img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('load fail')); };
+      img.src = url;
+    });
+  }
+
+  fileInput.addEventListener('change', function(){
+    var files = Array.prototype.slice.call(fileInput.files || [])
+      .filter(function(f){ return f.type.indexOf('image/') === 0; });
+    fileInput.value = '';
+    if(!files.length) return;
+
+    var chain = Promise.resolve();
+    files.forEach(function(f){
+      chain = chain.then(function(){
+        return compressImage(f).then(function(src){
+          addImage(src);
+        }).catch(function(){
+          toast('有 1 张图片读取失败');
+        });
+      });
+    });
+  });
+
+  /* ============ Sheet ============ */
+  function openSheet(){
+    scrim.classList.add('open');
+    sheet.classList.add('open');
+  }
+  function closeSheet(){
+    scrim.classList.remove('open');
+    sheet.classList.remove('open');
+  }
+
+  function showAddSheet(){
+    sheetMode = 'add';
+    editingId = null;
+    sheetBody.innerHTML =
+      '<p class="sheet-title">添加浮窗</p>' +
+      '<button class="opt" data-act="text">' +
+        '<span class="opt-ic">' + ICON.text + '</span>' +
+        '<span class="opt-tx"><b>文字浮窗</b><small>输入一段文字，随时悬浮在屏幕上</small></span>' +
+      '</button>' +
+      '<button class="opt" data-act="image">' +
+        '<span class="opt-ic">' + ICON.image + '</span>' +
+        '<span class="opt-tx"><b>图片浮窗</b><small>从相册选择，可一次添加多张</small></span>' +
+      '</button>';
+
+    $('[data-act="text"]', sheetBody).addEventListener('click', function(){
+      openTextSheet(null);
+    });
+    $('[data-act="image"]', sheetBody).addEventListener('click', function(){
+      closeSheet();
+      setTimeout(function(){ fileInput.click(); }, 180);
+    });
+    openSheet();
+  }
+
+  function openTextSheet(w){
+    sheetMode = 'text';
+    editingId = w ? w.id : null;
+    var val = w ? w.text : '';
+    sheetBody.innerHTML =
+      '<p class="sheet-title">' + (w ? '编辑文字' : '新增文字浮窗') + '</p>' +
+      '<textarea class="md-field" id="taField" placeholder="输入要显示的内容…" rows="5"></textarea>' +
+      '<div class="sheet-actions">' +
+        '<button class="btn-text" id="btnCancel">取消</button>' +
+        '<button class="btn-filled" id="btnOk">' + (w ? '保存' : '添加') + '</button>' +
+      '</div>';
+
+    var ta = $('#taField', sheetBody);
+    ta.value = val;
+    openSheet();
+    setTimeout(function(){ ta.focus(); }, 260);
+
+    $('#btnCancel', sheetBody).addEventListener('click', closeSheet);
+    $('#btnOk', sheetBody).addEventListener('click', function(){
+      var txt = ta.value.trim();
+      if(!txt){
+        ta.focus();
+        return;
+      }
+      if(editingId){
+        var t = wins.filter(function(x){ return x.id === editingId; })[0];
+        if(t){
+          t.text = txt;
+          var el = els.get(t.id);
+          if(el){
+            var p = $('.win-text', el);
+            if(p) p.textContent = txt;
+          }
+        }
+        save();
+      }else{
+        addText(txt);
+      }
+      closeSheet();
+    });
+  }
+
+  /* ============ Toast ============ */
+  function toast(msg, actionText, action){
+    toastEl.innerHTML = '';
+    var span = document.createElement('span');
+    span.textContent = msg;
+    toastEl.appendChild(span);
+
+    if(actionText){
+      var b = document.createElement('button');
+      b.className = 'toast-act';
+      b.textContent = actionText;
+      b.addEventListener('click', function(){
+        hideToast();
+        action && action();
+      });
+      toastEl.appendChild(b);
+    }
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, actionText ? 4600 : 2000);
+  }
+  function hideToast(){
+    toastEl.classList.remove('show');
+  }
+
+  /* ============ 事件绑定 ============ */
+  fab.addEventListener('click', showAddSheet);
+  scrim.addEventListener('click', closeSheet);
+
+  document.getElementById('btnClear').addEventListener('click', function(){
+    if(wins.length === 0) return;
+    if(!confirm('确定关闭全部 ' + wins.length + ' 个浮窗？')) return;
+    var snapshot = wins.slice();
+    wins = [];
+    Array.from(els.keys()).forEach(function(id){
+      var el = els.get(id);
+      if(el && el.parentNode) el.parentNode.removeChild(el);
+    });
+    els.clear();
+    syncEmpty();
+    save();
+    toast('已清空 ' + snapshot.length + ' 个浮窗', '撤销', function(){
+      snapshot.forEach(function(w){
+        w.z = ++zTop;
+        wins.push(w);
+        mount(w);
+      });
+      syncEmpty();
+      save();
+    });
+  });
+
+  window.addEventListener('resize', function(){
+    wins.forEach(function(w){
+      var el = els.get(w.id);
+      if(!el) return;
+      var W = el.offsetWidth || 240;
+      w.x = clamp(w.x, -W * 0.4, Math.max(0, window.innerWidth - W * 0.6));
+      w.y = clamp(w.y, 64, Math.max(64, window.innerHeight - 60));
+      el.style.transform = 'translate3d(' + w.x + 'px, ' + w.y + 'px, 0)';
+    });
+  });
+
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape') closeSheet();
+  });
+
+  /* ============ 启动 ============ */
+  load();
+  wins.forEach(mount);
+  syncEmpty();
+})();
+</script>
+</body>
+</html>
